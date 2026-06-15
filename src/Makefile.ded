@@ -1,0 +1,99 @@
+# Makefile.ded — modern build for the original RtCW-MP dedicated server.
+#
+# Replaces the dead 2001 `cons`/Perl build. Verified with GCC 14 (32-bit).
+#
+# Usage (from src/):
+#   make -f Makefile.ded            # build wolfded.x86
+#   make -f Makefile.ded clean
+#   make -f Makefile.ded V=1        # verbose (show full compile lines)
+#
+# Requirements (Debian/Ubuntu): gcc-multilib, libc6-dev-i386, nasm
+#
+# Why these flags:
+#   -m32           original code assumes 32-bit (pointer==int etc.)
+#   -fgnu89-inline botlib uses __inline without static (2001 GNU89 semantics);
+#                  modern C99 inline would drop the symbol -> undefined refs
+#   -no-pie        ftol.nasm/snapvector.nasm produce TEXTREL not allowed in PIE
+
+CC      ?= gcc
+NASM    ?= nasm
+
+TARGET  := wolfded.x86
+BUILD   := ../build-ded
+
+CFLAGS  := -m32 -fgnu89-inline -O2 -fno-strict-aliasing \
+           -DDEDICATED -DC_ONLY -DBOTLIB \
+           -I./game -I./qcommon -I./server -I./botlib \
+           -Wno-implicit-function-declaration
+LDFLAGS := -m32 -no-pie
+LIBS    := -ldl -lm
+
+# Verbosity
+ifeq ($(V),1)
+  Q :=
+else
+  Q := @
+endif
+
+# ---- source lists (from Conscript-dedicated) -------------------------------
+SRV := server/sv_bot.c server/sv_ccmds.c server/sv_client.c server/sv_game.c \
+       server/sv_init.c server/sv_main.c server/sv_net_chan.c \
+       server/sv_snapshot.c server/sv_world.c
+
+QC  := qcommon/cm_load.c qcommon/cm_patch.c qcommon/cm_polylib.c \
+       qcommon/cm_test.c qcommon/cm_trace.c qcommon/cmd.c qcommon/common.c \
+       qcommon/cvar.c qcommon/files.c qcommon/huffman.c qcommon/md4.c \
+       qcommon/msg.c qcommon/net_chan.c qcommon/unzip.c qcommon/vm.c \
+       qcommon/vm_interpreted.c qcommon/vm_x86.c
+
+GAME := game/q_math.c game/q_shared.c
+
+UNIX := unix/linux_common.c unix/unix_main.c unix/unix_net.c \
+        unix/unix_shared.c unix/linux_signals.c
+
+NULLC := null/null_client.c null/null_input.c null/null_snddma.c
+
+BOTLIB := botlib/be_aas_bspq3.c botlib/be_aas_cluster.c botlib/be_aas_debug.c \
+          botlib/be_aas_entity.c botlib/be_aas_file.c botlib/be_aas_main.c \
+          botlib/be_aas_move.c botlib/be_aas_optimize.c botlib/be_aas_reach.c \
+          botlib/be_aas_route.c botlib/be_aas_routealt.c \
+          botlib/be_aas_routetable.c botlib/be_aas_sample.c botlib/be_ai_char.c \
+          botlib/be_ai_chat.c botlib/be_ai_gen.c botlib/be_ai_goal.c \
+          botlib/be_ai_move.c botlib/be_ai_weap.c botlib/be_ai_weight.c \
+          botlib/be_ea.c botlib/be_interface.c botlib/l_crc.c botlib/l_libvar.c \
+          botlib/l_log.c botlib/l_memory.c botlib/l_precomp.c botlib/l_script.c \
+          botlib/l_struct.c
+
+# Tracker module (added by us; safe to list before the file exists only if you
+# create it first — see the porting step). Comment out until sv_tracker.c exists.
+# TRACKER := server/sv_tracker.c
+
+CSRC := $(SRV) $(QC) $(GAME) $(UNIX) $(NULLC) $(BOTLIB) $(TRACKER)
+NASMSRC := unix/ftol.nasm unix/snapvector.nasm
+
+COBJ := $(patsubst %.c,$(BUILD)/%.o,$(CSRC))
+NOBJ := $(patsubst %.nasm,$(BUILD)/%.o,$(NASMSRC))
+OBJ  := $(COBJ) $(NOBJ)
+
+# ---- rules -----------------------------------------------------------------
+all: $(BUILD)/$(TARGET)
+
+$(BUILD)/$(TARGET): $(OBJ)
+	@echo "  LD   $@"
+	$(Q)$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
+	@echo "Built $@"
+
+$(BUILD)/%.o: %.c
+	@mkdir -p $(dir $@)
+	@echo "  CC   $<"
+	$(Q)$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/%.o: %.nasm
+	@mkdir -p $(dir $@)
+	@echo "  NASM $<"
+	$(Q)$(NASM) -f elf $< -o $@
+
+clean:
+	rm -rf $(BUILD)
+
+.PHONY: all clean
