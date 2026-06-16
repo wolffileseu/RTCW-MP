@@ -19,6 +19,7 @@
 CC      ?= gcc
 NASM    ?= nasm
 MINGW   ?= i686-w64-mingw32-gcc
+STRIP_W ?= i686-w64-mingw32-strip
 
 BUILD   := ../build-ded
 
@@ -159,7 +160,8 @@ $(W_SERVER): $(W_SRV_OBJ)
 	@mkdir -p $(W_BUILD)
 	@echo "  LD   $@"
 	$(Q)$(MINGW) $(W_LDFLAGS) -o $@ $(W_SRV_OBJ) $(W_LIBS)
-	@echo "Built $@"
+	$(Q)$(STRIP_W) $@
+	@echo "Built $@ (stripped)"
 $(W_BUILD)/wsrv/%.o: %.c
 	@mkdir -p $(dir $@)
 	@echo "  CC   $< (win server)"
@@ -174,7 +176,8 @@ $(W_QAGAME): $(W_GAME_OBJ)
 	@mkdir -p $(W_MAIN)
 	@echo "  LD   $@"
 	$(Q)$(MINGW) -shared -o $@ $(W_GAME_OBJ)
-	@echo "Built $@"
+	$(Q)$(STRIP_W) $@
+	@echo "Built $@ (stripped)"
 $(W_BUILD)/wgame/%.o: %.c
 	@mkdir -p $(dir $@)
 	@echo "  CC   $< (win qagame)"
