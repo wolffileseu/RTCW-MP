@@ -1,65 +1,39 @@
-# Makefile.ded — modern GCC build for the original RtCW-MP dedicated server
-# AND the game module (qagame), replacing the dead 2001 `cons` build.
+# Makefile.ded — modern build for the original RtCW-MP dedicated server +
+# game module, for BOTH Linux (gcc -m32) and Windows (MinGW cross), replacing
+# the dead 2001 `cons` build.
 #
-# Usage (from src/):
-#   make -f Makefile.ded            # build wolfded.x86 + main/qagame.mp.i386.so
-#   make -f Makefile.ded server     # only the dedicated server
-#   make -f Makefile.ded qagame     # only the game module
-#   make -f Makefile.ded clean
-#   make -f Makefile.ded V=1        # verbose
+# Linux:    make -f Makefile.ded                 -> build-ded/wolfded.x86
+#                                                   build-ded/main/qagame.mp.i386.so
+# Windows:  make -f Makefile.ded win             -> build-ded/win/wolfded.exe
+#                                                   build-ded/win/main/qagame_mp_x86.dll
+#   (Windows needs: gcc-mingw-w64 + nasm)
 #
-# Requirements (Debian/Ubuntu): gcc-multilib, libc6-dev-i386, nasm
+# Linux needs: gcc-multilib, libc6-dev-i386, nasm
 #
 # Verified flags:
-#   server: -m32 -fgnu89-inline             (+ -no-pie at link for nasm TEXTREL)
-#   qagame: -m32 -fgnu89-inline -fPIC -DGAMEDLL -I/usr/include/i386-linux-gnu
-#           (the extra include path fixes 32-bit bits/wordsize.h via assert.h)
+#   server linux:  -m32 -fgnu89-inline             link: -no-pie  + nasm -f elf
+#   qagame linux:  -m32 -fgnu89-inline -fPIC -DGAMEDLL -I/usr/include/i386-linux-gnu
+#   server win:    -DWIN32 -DDLL_ONLY (no JIT, interpreter only) + nasm -f win32
+#   qagame win:    -DGAMEDLL -DWIN32 -DC_ONLY  -> .dll
 
 CC      ?= gcc
 NASM    ?= nasm
+MINGW   ?= i686-w64-mingw32-gcc
 
 BUILD   := ../build-ded
-MAIN     := $(BUILD)/main
 
-SERVER_BIN := $(BUILD)/wolfded.x86
-QAGAME_BIN := $(MAIN)/qagame.mp.i386.so
-
-# ---- shared / server flags -------------------------------------------------
-CFLAGS  := -m32 -fgnu89-inline -O2 -fno-strict-aliasing \
-           -DDEDICATED -DC_ONLY -DBOTLIB \
-           -I./game -I./qcommon -I./server -I./botlib \
-           -Wno-implicit-function-declaration
-LDFLAGS := -m32 -no-pie
-LIBS    := -ldl -lm
-
-# ---- qagame flags ----------------------------------------------------------
-GAME_CFLAGS := -m32 -fgnu89-inline -O2 -fno-strict-aliasing -fPIC -DGAMEDLL \
-               -I/usr/include/i386-linux-gnu -I./game -I./botai -I./qcommon \
-               -Wno-implicit-function-declaration
-GAME_LDFLAGS := -m32 -shared -fPIC
-
-ifeq ($(V),1)
-  Q :=
-else
-  Q := @
-endif
-
-# ---- server sources --------------------------------------------------------
+# ===================== shared source lists ==================================
 SRV := server/sv_bot.c server/sv_ccmds.c server/sv_client.c server/sv_game.c \
        server/sv_init.c server/sv_main.c server/sv_net_chan.c \
        server/sv_snapshot.c server/sv_world.c server/sv_tracker.c
 
-QC  := qcommon/cm_load.c qcommon/cm_patch.c qcommon/cm_polylib.c \
+QC_COMMON := qcommon/cm_load.c qcommon/cm_patch.c qcommon/cm_polylib.c \
        qcommon/cm_test.c qcommon/cm_trace.c qcommon/cmd.c qcommon/common.c \
        qcommon/cvar.c qcommon/files.c qcommon/huffman.c qcommon/md4.c \
        qcommon/msg.c qcommon/net_chan.c qcommon/unzip.c qcommon/vm.c \
-       qcommon/vm_interpreted.c qcommon/vm_x86.c
+       qcommon/vm_interpreted.c
 
 GAMEQ := game/q_math.c game/q_shared.c
-
-UNIX := unix/linux_common.c unix/unix_main.c unix/unix_net.c \
-        unix/unix_shared.c unix/linux_signals.c
-
 NULLC := null/null_client.c null/null_input.c null/null_snddma.c
 
 BOTLIB := botlib/be_aas_bspq3.c botlib/be_aas_cluster.c botlib/be_aas_debug.c \
@@ -73,13 +47,6 @@ BOTLIB := botlib/be_aas_bspq3.c botlib/be_aas_cluster.c botlib/be_aas_debug.c \
           botlib/l_log.c botlib/l_memory.c botlib/l_precomp.c botlib/l_script.c \
           botlib/l_struct.c
 
-SRV_CSRC := $(SRV) $(QC) $(GAMEQ) $(UNIX) $(NULLC) $(BOTLIB)
-SRV_NASM := unix/ftol.nasm unix/snapvector.nasm
-
-SRV_OBJ := $(patsubst %.c,$(BUILD)/srv/%.o,$(SRV_CSRC)) \
-           $(patsubst %.nasm,$(BUILD)/srv/%.o,$(SRV_NASM))
-
-# ---- qagame sources (from Conscript-game) ----------------------------------
 GAME_SRC := game/ai_cast.c game/ai_cast_characters.c game/ai_cast_debug.c \
             game/ai_cast_events.c game/ai_cast_fight.c game/ai_cast_func_attack.c \
             game/ai_cast_func_boss1.c game/ai_cast_funcs.c game/ai_cast_script.c \
@@ -97,42 +64,123 @@ GAME_SRC := game/ai_cast.c game/ai_cast_characters.c game/ai_cast_debug.c \
             game/g_tramcar.c game/g_trigger.c game/g_utils.c game/g_vehicles.c \
             game/g_weapon.c game/q_math.c game/q_shared.c
 
-GAME_OBJ := $(patsubst %.c,$(BUILD)/game/%.o,$(GAME_SRC))
+ifeq ($(V),1)
+  Q :=
+else
+  Q := @
+endif
 
-# ---- top-level targets -----------------------------------------------------
+# ===================== LINUX (default) ======================================
+L_BUILD   := $(BUILD)
+L_MAIN    := $(L_BUILD)/main
+L_SERVER  := $(L_BUILD)/wolfded.x86
+L_QAGAME  := $(L_MAIN)/qagame.mp.i386.so
+
+L_CFLAGS  := -m32 -fgnu89-inline -O2 -fno-strict-aliasing \
+             -DDEDICATED -DC_ONLY -DBOTLIB \
+             -I./game -I./qcommon -I./server -I./botlib \
+             -Wno-implicit-function-declaration
+L_LDFLAGS := -m32 -no-pie
+L_GAME_CFLAGS := -m32 -fgnu89-inline -O2 -fno-strict-aliasing -fPIC -DGAMEDLL \
+             -I/usr/include/i386-linux-gnu -I./game -I./botai -I./qcommon \
+             -Wno-implicit-function-declaration
+
+L_SRV_CSRC := $(SRV) $(QC_COMMON) qcommon/vm_x86.c $(GAMEQ) \
+              unix/linux_common.c unix/unix_main.c unix/unix_net.c \
+              unix/unix_shared.c unix/linux_signals.c $(NULLC) $(BOTLIB)
+L_SRV_NASM := unix/ftol.nasm unix/snapvector.nasm
+
+L_SRV_OBJ := $(patsubst %.c,$(L_BUILD)/lsrv/%.o,$(L_SRV_CSRC)) \
+             $(patsubst %.nasm,$(L_BUILD)/lsrv/%.o,$(L_SRV_NASM))
+L_GAME_OBJ := $(patsubst %.c,$(L_BUILD)/lgame/%.o,$(GAME_SRC))
+
+# ===================== WINDOWS (MinGW) ======================================
+W_BUILD   := $(BUILD)/win
+W_MAIN    := $(W_BUILD)/main
+W_SERVER  := $(W_BUILD)/wolfded.exe
+W_QAGAME  := $(W_MAIN)/qagame_mp_x86.dll
+
+W_CFLAGS  := -fgnu89-inline -O2 -fno-strict-aliasing \
+             -DDEDICATED -DC_ONLY -DBOTLIB -DWIN32 -DDLL_ONLY \
+             -Wno-incompatible-pointer-types -Wno-implicit-function-declaration \
+             -I./game -I./qcommon -I./server -I./botlib -I./win32
+W_LDFLAGS := -mconsole
+W_LIBS    := -lwsock32 -lwinmm -lws2_32 -lgdi32 -luser32 -lole32 -ladvapi32 -lshell32
+W_GAME_CFLAGS := -fgnu89-inline -O2 -fno-strict-aliasing -DGAMEDLL -DWIN32 -DC_ONLY \
+             -Wno-incompatible-pointer-types -Wno-implicit-function-declaration \
+             -I./game -I./botai -I./qcommon
+
+# Windows server: win32/ instead of unix/, NO vm_x86 (DLL_ONLY), + win_wndproc
+W_SRV_CSRC := $(SRV) $(QC_COMMON) $(GAMEQ) \
+              win32/win_main.c win32/win_net.c win32/win_shared.c \
+              win32/win_syscon.c win32/win_wndproc.c $(NULLC) $(BOTLIB)
+W_SRV_NASM := unix/ftol.nasm unix/snapvector.nasm
+
+W_SRV_OBJ := $(patsubst %.c,$(W_BUILD)/wsrv/%.o,$(W_SRV_CSRC)) \
+             $(patsubst %.nasm,$(W_BUILD)/wsrv/%.o,$(W_SRV_NASM))
+W_GAME_OBJ := $(patsubst %.c,$(W_BUILD)/wgame/%.o,$(GAME_SRC))
+
+# ===================== targets ==============================================
 all: server qagame
+server: $(L_SERVER)
+qagame: $(L_QAGAME)
 
-server: $(SERVER_BIN)
-qagame: $(QAGAME_BIN)
+win: win-server win-qagame
+win-server: $(W_SERVER)
+win-qagame: $(W_QAGAME)
 
-$(SERVER_BIN): $(SRV_OBJ)
+# ---- Linux server ----
+$(L_SERVER): $(L_SRV_OBJ)
 	@echo "  LD   $@"
-	$(Q)$(CC) $(LDFLAGS) -o $@ $(SRV_OBJ) $(LIBS)
+	$(Q)$(CC) $(L_LDFLAGS) -o $@ $(L_SRV_OBJ) -ldl -lm
 	@echo "Built $@"
-
-$(QAGAME_BIN): $(GAME_OBJ)
-	@mkdir -p $(MAIN)
-	@echo "  LD   $@"
-	$(Q)$(CC) $(GAME_LDFLAGS) -o $@ $(GAME_OBJ) $(LIBS)
-	@echo "Built $@"
-
-# ---- compile rules ---------------------------------------------------------
-$(BUILD)/srv/%.o: %.c
+$(L_BUILD)/lsrv/%.o: %.c
 	@mkdir -p $(dir $@)
-	@echo "  CC   $< (server)"
-	$(Q)$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILD)/srv/%.o: %.nasm
+	@echo "  CC   $< (linux server)"
+	$(Q)$(CC) $(L_CFLAGS) -c $< -o $@
+$(L_BUILD)/lsrv/%.o: %.nasm
 	@mkdir -p $(dir $@)
-	@echo "  NASM $<"
+	@echo "  NASM $< (elf)"
 	$(Q)$(NASM) -f elf $< -o $@
 
-$(BUILD)/game/%.o: %.c
+# ---- Linux qagame ----
+$(L_QAGAME): $(L_GAME_OBJ)
+	@mkdir -p $(L_MAIN)
+	@echo "  LD   $@"
+	$(Q)$(CC) -m32 -shared -fPIC -o $@ $(L_GAME_OBJ) -ldl -lm
+	@echo "Built $@"
+$(L_BUILD)/lgame/%.o: %.c
 	@mkdir -p $(dir $@)
-	@echo "  CC   $< (qagame)"
-	$(Q)$(CC) $(GAME_CFLAGS) -c $< -o $@
+	@echo "  CC   $< (linux qagame)"
+	$(Q)$(CC) $(L_GAME_CFLAGS) -c $< -o $@
+
+# ---- Windows server ----
+$(W_SERVER): $(W_SRV_OBJ)
+	@mkdir -p $(W_BUILD)
+	@echo "  LD   $@"
+	$(Q)$(MINGW) $(W_LDFLAGS) -o $@ $(W_SRV_OBJ) $(W_LIBS)
+	@echo "Built $@"
+$(W_BUILD)/wsrv/%.o: %.c
+	@mkdir -p $(dir $@)
+	@echo "  CC   $< (win server)"
+	$(Q)$(MINGW) $(W_CFLAGS) -c $< -o $@
+$(W_BUILD)/wsrv/%.o: %.nasm
+	@mkdir -p $(dir $@)
+	@echo "  NASM $< (win32)"
+	$(Q)$(NASM) -f win32 $< -o $@
+
+# ---- Windows qagame ----
+$(W_QAGAME): $(W_GAME_OBJ)
+	@mkdir -p $(W_MAIN)
+	@echo "  LD   $@"
+	$(Q)$(MINGW) -shared -o $@ $(W_GAME_OBJ)
+	@echo "Built $@"
+$(W_BUILD)/wgame/%.o: %.c
+	@mkdir -p $(dir $@)
+	@echo "  CC   $< (win qagame)"
+	$(Q)$(MINGW) $(W_GAME_CFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all server qagame clean
+.PHONY: all server qagame win win-server win-qagame clean
