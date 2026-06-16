@@ -102,12 +102,12 @@ W_SERVER  := $(W_BUILD)/wolfded.exe
 W_QAGAME  := $(W_MAIN)/qagame_mp_x86.dll
 
 W_CFLAGS  := -fgnu89-inline -O2 -fno-strict-aliasing \
-             -DDEDICATED -DC_ONLY -DBOTLIB -DWIN32 -DDLL_ONLY \
+             -DDEDICATED -DC_ONLY -DBOTLIB -DWIN32 -DDLL_ONLY -DNDEBUG \
              -Wno-incompatible-pointer-types -Wno-implicit-function-declaration \
              -I./game -I./qcommon -I./server -I./botlib -I./win32
 W_LDFLAGS := -mconsole
 W_LIBS    := -lwsock32 -lwinmm -lws2_32 -lgdi32 -luser32 -lole32 -ladvapi32 -lshell32
-W_GAME_CFLAGS := -fgnu89-inline -O2 -fno-strict-aliasing -DGAMEDLL -DWIN32 -DC_ONLY \
+W_GAME_CFLAGS := -fgnu89-inline -O2 -fno-strict-aliasing -DGAMEDLL -DWIN32 -DC_ONLY -DNDEBUG \
              -Wno-incompatible-pointer-types -Wno-implicit-function-declaration \
              -I./game -I./botai -I./qcommon
 
