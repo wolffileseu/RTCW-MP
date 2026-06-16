@@ -1,10 +1,10 @@
 name: Release
 
 # Builds release archives and publishes a GitHub Release when a version tag
-# is pushed (e.g. `git tag v1.0.0-tracker && git push origin v1.0.0-tracker`).
+# is pushed (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
 #
-# RTCW-MP (original id source) revived with a modern GCC 32-bit build, plus the
-# engine-side mod-independent Wolffiles tracker.
+# RTCW-MP (original id source) revived with a modern GCC/MinGW build, plus the
+# engine-side mod-independent Wolffiles tracker. Linux + Windows.
 
 on:
   push:
@@ -22,52 +22,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install 32-bit toolchain + nasm
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y gcc-multilib libc6-dev-i386 nasm zip
-
-      - name: Build server + qagame
-        run: |
-          cd src
-          make -f Makefile.ded -j"$(nproc)"
-
-      - name: Stage release files
+      - name: Build server + qagame (Linux)
+        run: cd src && make -f Makefile.ded -j"$(nproc)"
+      - name: Stage
         run: |
           OUT=stage/rtcw-mp-tracker-linux-x86
           mkdir -p "$OUT/main"
-          cp build-ded/wolfded.x86             "$OUT/"
-          cp build-ded/main/qagame.mp.i386.so  "$OUT/main/"
-          cp README.txt COPYING.txt            "$OUT/" 2>/dev/null || true
-          ls -laR "$OUT"
-
+          cp build-ded/wolfded.x86            "$OUT/"
+          cp build-ded/main/qagame.mp.i386.so "$OUT/main/"
+          cp README.txt COPYING.txt           "$OUT/" 2>/dev/null || true
       - name: Zip
-        run: |
-          cd stage
-          zip -r ../rtcw-mp-tracker-linux-x86.zip rtcw-mp-tracker-linux-x86
-
+        run: cd stage && zip -r ../rtcw-mp-tracker-linux-x86.zip rtcw-mp-tracker-linux-x86
       - uses: actions/upload-artifact@v4
         with:
           name: rtcw-mp-tracker-linux-x86
           path: rtcw-mp-tracker-linux-x86.zip
           if-no-files-found: error
 
+  # --------------------------------------------------------- Windows x86 (32)
+  windows:
+    name: Windows x86 (MinGW cross)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MinGW + nasm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-i686 nasm zip
+      - name: Build server + qagame (Windows)
+        run: cd src && make -f Makefile.ded win -j"$(nproc)"
+      - name: Stage
+        run: |
+          OUT=stage/rtcw-mp-tracker-win-x86
+          mkdir -p "$OUT/main"
+          cp build-ded/win/wolfded.exe              "$OUT/"
+          cp build-ded/win/main/qagame_mp_x86.dll   "$OUT/main/"
+          cp README.txt COPYING.txt                 "$OUT/" 2>/dev/null || true
+      - name: Zip
+        run: cd stage && zip -r ../rtcw-mp-tracker-win-x86.zip rtcw-mp-tracker-win-x86
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rtcw-mp-tracker-win-x86
+          path: rtcw-mp-tracker-win-x86.zip
+          if-no-files-found: error
+
   # ------------------------------------------------------------------ Release
   release:
     name: Publish GitHub Release
-    needs: [linux]
+    needs: [linux, windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-
       - name: Show artifacts
         run: find dist -type f
-
       - name: Create / update release
         uses: softprops/action-gh-release@v2
         with:
@@ -77,13 +92,14 @@ jobs:
             ## RtCW-MP (Wolffiles tracker build)
 
             The **original id Software Return to Castle Wolfenstein multiplayer**
-            dedicated server, revived with a modern 32-bit GCC build, plus the
-            engine-side **mod-independent** Wolffiles tracker (score / ping /
-            team / kills for any RtCW mod — no mod changes required).
+            dedicated server, revived with a modern build (Linux gcc -m32 /
+            Windows MinGW cross), plus the engine-side **mod-independent**
+            Wolffiles tracker — score / ping / team / kills for any RtCW mod,
+            no mod changes required.
 
-            **Contents (Linux):**
-            - `wolfded.x86` — dedicated server with tracker
-            - `main/qagame.mp.i386.so` — game module
+            **Contents:**
+            - Linux: `wolfded.x86` + `main/qagame.mp.i386.so`
+            - Windows: `wolfded.exe` + `main/qagame_mp_x86.dll`
 
             **Enable tracking** on your server:
             ```
@@ -92,5 +108,5 @@ jobs:
 
             Built from tag `${{ github.ref_name }}`.
 
-            > Note: this is the original 1.41 source line, distinct from the
-            > iortcw build. Windows binaries will follow in a later release.
+            > Original 1.41 source line (distinct from the iortcw build).
+            > The Windows build uses the bytecode interpreter (JIT disabled).
