@@ -66,7 +66,7 @@ BOTLIB := botlib/be_aas_bspq3.c botlib/be_aas_cluster.c botlib/be_aas_debug.c \
 
 # Tracker module (added by us; safe to list before the file exists only if you
 # create it first — see the porting step). Comment out until sv_tracker.c exists.
-# TRACKER := server/sv_tracker.c
+TRACKER := server/sv_tracker.c
 
 CSRC := $(SRV) $(QC) $(GAME) $(UNIX) $(NULLC) $(BOTLIB) $(TRACKER)
 NASMSRC := unix/ftol.nasm unix/snapvector.nasm

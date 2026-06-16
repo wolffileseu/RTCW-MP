@@ -34,6 +34,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "server.h"
+#include "sv_tracker.h"
 
 /*
 ===============
@@ -669,6 +670,8 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	// to all clients
 	sv.state = SS_GAME;
 
+	Tracker_Map( server );
+
 	// send a heartbeat now so the master will get up to date info
 	SV_Heartbeat_f();
 
@@ -903,6 +906,8 @@ void SV_Init( void ) {
 		}
 	}
 #endif
+
+	Tracker_Init();
 }
 
 

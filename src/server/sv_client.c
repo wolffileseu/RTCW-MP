@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 // sv_client.c -- server code for dealing with clients
 
 #include "server.h"
+#include "sv_tracker.h"
 
 static void SV_CloseDownload( client_t *cl );
 
@@ -504,6 +505,8 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 		return;     // already dropped
 	}
 
+	Tracker_ClientDisconnect( drop );
+
 	if ( !drop->gentity || !( drop->gentity->r.svFlags & SVF_BOT ) ) {
 		// see if we already have a challenge for this ip
 		challenge = &svs.challenges[0];
@@ -649,6 +652,8 @@ void SV_ClientEnterWorld( client_t *client, usercmd_t *cmd ) {
 
 	Com_DPrintf( "Going from CS_PRIMED to CS_ACTIVE for %s\n", client->name );
 	client->state = CS_ACTIVE;
+
+	Tracker_ClientConnect( client );
 
 	// set up the entity for the client
 	clientNum = client - svs.clients;

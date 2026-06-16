@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 // sv_game.c -- interface to the game dll
 
 #include "server.h"
+#include "sv_tracker.h"
 
 #include "../game/botlib.h"
 
@@ -323,6 +324,7 @@ int SV_GameSystemCalls( int *args ) {
 	switch ( args[0] ) {
 	case G_PRINT:
 		Com_Printf( "%s", VMA( 1 ) );
+		Tracker_GamePrint( (const char *)VMA( 1 ) );
 		return 0;
 	case G_ERROR:
 		Com_Error( ERR_DROP, "%s", VMA( 1 ) );

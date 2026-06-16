@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 
 
 #include "server.h"
+#include "sv_tracker.h"
 
 serverStatic_t svs;                 // persistant server info
 server_t sv;                        // local server
@@ -1092,6 +1093,9 @@ void SV_Frame( int msec ) {
 
 	// send a heartbeat to the master if needed
 	SV_MasterHeartbeat( HEARTBEAT_GAME );
+
+	// Wolffiles tracker tick
+	Tracker_Frame( msec );
 }
 
 //============================================================================
